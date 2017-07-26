@@ -1,8 +1,6 @@
 package co.develoop.android_reactive_realm_sample.domain
 
 import android.content.Context
-import android.os.Handler
-import android.os.HandlerThread
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.realm.Realm
@@ -21,17 +19,20 @@ class BookClient {
         }
 
         fun createOrUpdate(book: Book): Completable {
-            return Completable.create {
+            return Completable.create { observer ->
                 val realm = Realm.getDefaultInstance()
 
-                try {
-                    realm.beginTransaction()
-                    realm.copyToRealmOrUpdate(book)
-                    realm.commitTransaction()
-                } catch (exception: Exception) {
-                    realm.cancelTransaction()
-                } finally {
-                    realm.close()
+                realm.executeTransactionAsync { realmInstance ->
+                    try {
+                        realmInstance.copyToRealmOrUpdate(book)
+                        realmInstance.commitTransaction()
+
+                    } catch (exception: Exception) {
+                        realmInstance.cancelTransaction()
+                    } finally {
+                        realmInstance.close()
+                        observer.onComplete()
+                    }
                 }
             }
         }
@@ -40,29 +41,18 @@ class BookClient {
             return Observable.create<Book> { observer ->
                 val realm = Realm.getDefaultInstance()
 
-                val result = realm.where(Book::class.java).equalTo("title", title).findFirst()
+                realm.executeTransactionAsync { realmInstance ->
+                    val result = realmInstance.where(Book::class.java).equalTo("title", title).findFirst()
 
-                observer.onNext(realm.copyFromRealm(result))
+                    observer.onNext(realmInstance.copyFromRealm(result))
+
+                    realmInstance.close()
+                }
             }
         }
 
-        fun observe(title: String): Observable<Book> {
-            return Observable.create<Book> { observer ->
-                object : HandlerThread("realm") {
-
-                    override fun onLooperPrepared() {
-                        super.onLooperPrepared()
-
-                        val realm = Realm.getDefaultInstance()
-                        val handler = Handler()
-                        handler.post {
-                            realm.where(Book::class.java).equalTo("title", title).findFirst().addChangeListener<Book> { book, _ ->
-                                observer.onNext(realm.copyFromRealm(book))
-                            }
-                        }
-                    }
-                }.start()
-            }
+        fun observe(): Observable<Book>? {
+            return BookChangeObservable()
         }
     }
 }

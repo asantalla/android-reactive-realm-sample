@@ -33,23 +33,29 @@ This a common functionality of many Android applications. For example, if you ha
 Due to the limitation above commented, we have to create an **Observable** manually and add the Realm entity change listener on it. For example:
 
 ```kotlin
-return Observable.create<Book> { observer ->
-    object : HandlerThread("realm") {
+class BookChangeObservable : Observable<Book>() {
 
-        override fun onLooperPrepared() {
-            super.onLooperPrepared()
+    lateinit var bookToObserve: Book
 
-            val realm = Realm.getDefaultInstance()
-            val handler = Handler()
-            handler.post {
-                realm.where(Book::class.java).equalTo("title", title).findFirst().addChangeListener<Book> { book, _ ->
-                    observer.onNext(realm.copyFromRealm(book))
+    override fun subscribeActual(observer: Observer<in Book>?) {
+        object : HandlerThread("realm") {
+            override fun onLooperPrepared() {
+                super.onLooperPrepared()
+
+                val realm = Realm.getDefaultInstance()
+
+                bookToObserve = realm.where(Book::class.java).equalTo("title", MainActivity.bookTitle).findFirstAsync()
+
+                bookToObserve.addChangeListener<Book> { book, _ ->
+                    observer!!.onNext(realm.copyFromRealm(book))
                 }
             }
-        }
-    }.start()
+        }.start()
+    }
 }
 ```
+
+Be sure to get a reference to the object you want to observe to prevent the object be *garbage collected*. 
 
 Now, we can subscribe to the above **Observable** and updates the view every time the Realm entity is updated.
 
