@@ -55,7 +55,7 @@ class BookChangeObservable : Observable<Book>() {
 }
 ```
 
-Be sure to get a reference to the object you want to observe to prevent the object be *garbage collected*. 
+Be sure to get a reference to the object you want to observe, to prevent the object to be *garbage collected*. 
 
 Now, we can subscribe to the above **Observable** and updates the view every time the Realm entity is updated.
 
